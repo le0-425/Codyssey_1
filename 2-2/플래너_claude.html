@@ -1,472 +1,746 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>김민수 plan - 하루 시간 및 스케줄 관리</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        /* Custom Styles for Drag and Drop & Animations */
-        body { font-family: 'Inter', 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
-        .draggable { cursor: grab; }
-        .draggable:active { cursor: grabbing; }
-        .drop-zone { transition: background-color 0.2s ease; }
-        .drop-zone.drag-over { background-color: #e0f2fe !important; border-color: #3b82f6 !important; }
-        
-        .pet-container {
-            font-size: 4rem;
-            transition: transform 0.3s ease;
-        }
-        .pet-bounce {
-            animation: bounce 2s infinite;
-        }
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-        
-        /* Custom Scrollbar for list areas */
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>김민수 plan</title>
+<style>
+  :root{
+    --bg:#f3f4f8; --card:#ffffff; --ink:#1c2233; --sub:#6b7285; --line:#e4e7ef;
+    --accent:#4f6bff; --accent-soft:#eef1ff; --danger:#e5484d; --radius:16px;
+    color-scheme: light;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR","Segoe UI",sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  body.is-dragging{cursor:grabbing; user-select:none}
+  h1,h2,h3,p{margin:0}
+  button,input{font:inherit}
+
+  /* ---------- Header ---------- */
+  .top{
+    max-width:1440px; margin:16px auto 0; padding:18px 22px;
+    background:var(--card); border-radius:var(--radius);
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    box-shadow:0 1px 2px rgba(20,30,60,.04);
+  }
+  .brand{display:flex; align-items:center; gap:14px}
+  .avatar{
+    width:48px; height:48px; border-radius:14px; display:grid; place-items:center;
+    background:linear-gradient(135deg,#4f6bff,#8b5cf6); color:#fff; font-weight:700; font-size:20px;
+  }
+  .top h1{font-size:24px; letter-spacing:-.02em}
+  .top h1 .plan{color:var(--accent); font-weight:800}
+  .top .sub{color:var(--sub); font-size:13px}
+  .stat{display:flex; gap:8px; flex-wrap:wrap}
+  .pill{background:var(--bg); border-radius:999px; padding:6px 12px; font-size:13px; color:var(--sub)}
+  .pill b{color:var(--ink)}
+
+  /* ---------- Layout ---------- */
+  .layout{
+    display:grid; grid-template-columns:260px minmax(0,1fr) 310px; gap:16px;
+    max-width:1440px; margin:0 auto; padding:16px;
+  }
+  .side,.center{display:flex; flex-direction:column; gap:16px; min-width:0}
+  .card{background:var(--card); border-radius:var(--radius); padding:18px; box-shadow:0 1px 2px rgba(20,30,60,.04)}
+  .card h2{font-size:15px; margin-bottom:6px}
+  .card h3{font-size:13px; margin:18px 0 4px}
+  .hint{color:var(--sub); font-size:12px; margin-bottom:12px}
+
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:10px}
+  .field span{font-size:12px; color:var(--sub)}
+  .field input{
+    border:1px solid var(--line); border-radius:10px; padding:9px 11px; background:#fbfbfd; color:var(--ink); width:100%;
+  }
+  .field input:focus{outline:2px solid var(--accent); outline-offset:-1px; background:#fff}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+
+  .btn{
+    border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:10px;
+    padding:8px 12px; cursor:pointer; transition:.15s; white-space:nowrap;
+  }
+  .btn:hover{border-color:#c9cee0; background:#f8f9fc}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
+  .btn.primary:hover{filter:brightness(1.06)}
+  .btn.sm{padding:5px 9px; font-size:12px}
+  .btn.danger{color:var(--danger)}
+  .btn.danger:hover{background:#fff1f1; border-color:#f5c2c3}
+  .form-btns{display:flex; gap:8px}
+  .form-btns .primary{flex:1}
+  .err{color:var(--danger); font-size:12px; min-height:16px; margin-top:6px}
+
+  /* ---------- Draggable chips ---------- */
+  .cat-group{margin-bottom:12px}
+  .cat-gt{font-size:11px; font-weight:700; color:var(--sub); letter-spacing:.04em; margin:0 0 6px 2px}
+  .chip{
+    display:flex; align-items:center; gap:8px; padding:9px 10px; margin-bottom:6px;
+    background:#fff; border:1px solid var(--line); border-left:4px solid var(--c,#9aa1b2); border-radius:10px;
+    cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none; transition:transform .12s, box-shadow .12s, background .12s;
+  }
+  .chip:hover{transform:translateY(-1px); box-shadow:0 4px 12px rgba(20,30,60,.08)}
+  .chip .ico{font-size:16px; line-height:1}
+  .chip .nm{flex:1; font-weight:600; font-size:13px}
+  .chip .tag{font-size:11px; padding:2px 7px; border-radius:999px; background:color-mix(in srgb,var(--c) 14%,#fff); color:var(--c); font-weight:600}
+  .chip.selected{background:color-mix(in srgb,var(--c,#4f6bff) 10%,#fff); outline:2px solid var(--c,#4f6bff); outline-offset:-1px}
+  .chip.lifting{opacity:.35}
+  .chip.time{--c:var(--accent); flex-wrap:wrap}
+  .chip.time .tm{font-weight:700; font-variant-numeric:tabular-nums; font-size:13px}
+  .chip.time .tt{flex:1 1 100%; font-size:12px; color:var(--sub); order:3}
+  .chip.time .x{margin-left:auto; border:0; background:none; color:#a0a6b8; cursor:pointer; font-size:16px; line-height:1; padding:0 2px}
+  .chip.time .x:hover{color:var(--danger)}
+  .ghost{position:fixed; left:0; top:0; z-index:999; pointer-events:none; margin:0; box-shadow:0 14px 34px rgba(20,30,60,.22); opacity:.95}
+  .empty-chips{font-size:12px; color:var(--sub); padding:10px; border:1px dashed var(--line); border-radius:10px; text-align:center}
+
+  .edit-banner{
+    font-size:12px; background:#fff7e6; color:#9a5b00; border:1px solid #ffe2a8; border-radius:10px; padding:8px 10px; margin-bottom:12px;
+  }
+
+  /* ---------- Schedule table ---------- */
+  .toolbar{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap}
+  .toolbar h2{margin:0}
+  .tools{display:flex; gap:6px}
+  .dropzone{
+    border:2px dashed transparent; border-radius:14px; padding:4px; overflow-x:auto; min-height:180px;
+    transition:border-color .15s, background .15s;
+  }
+  body.is-dragging .dropzone,.dropzone.armed{border-color:#c9d0f5; background:#fafbff}
+  .dropzone.drop-hover{border-color:var(--accent); background:var(--accent-soft)}
+  table.sched{width:100%; min-width:600px; border-collapse:separate; border-spacing:0 6px}
+  .sched th{font-size:12px; color:var(--sub); font-weight:600; text-align:left; padding:4px 10px}
+  .sched td{padding:11px 10px; vertical-align:middle; background:var(--tint,transparent)}
+  .sched tr[data-id] td:first-child{border-left:4px solid var(--c); border-radius:10px 0 0 10px}
+  .sched tr[data-id] td:last-child{border-radius:0 10px 10px 0}
+  .sched tr[data-id]{transition:.15s}
+  .sched tr.hl td{background:color-mix(in srgb,var(--c) 22%,#fff)}
+  .sched tr.drop-hover td{box-shadow:inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent); background:color-mix(in srgb,var(--c) 25%,#fff)}
+  .sched tr.editing td{box-shadow:inset 0 2px 0 #f5a524, inset 0 -2px 0 #f5a524}
+  .sched tr.done .title{text-decoration:line-through; color:var(--sub)}
+  .sched tr.flash td{animation:flash .9s ease}
+  @keyframes flash{0%{background:color-mix(in srgb,var(--c) 45%,#fff)}100%{background:var(--tint)}}
+  .c-done{width:52px; text-align:center}
+  .c-done input{width:18px; height:18px; accent-color:var(--c,#4f6bff); cursor:pointer}
+  .c-act{width:118px; text-align:right; white-space:nowrap}
+  .badge{display:inline-flex; gap:5px; align-items:center; font-size:12px; font-weight:700; color:var(--c); background:#fff; border-radius:999px; padding:3px 10px; border:1px solid color-mix(in srgb,var(--c) 35%,#fff); white-space:nowrap}
+  .time{font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap}
+  .sched small{display:block; color:var(--sub); font-size:11px}
+  .missing{font-size:12px; color:#9aa1b2; font-style:italic}
+  .empty-box{display:flex; flex-direction:column; align-items:center; gap:6px; padding:46px 10px; color:var(--sub); text-align:center}
+  .empty-box b{color:var(--ink); font-size:15px}
+  .empty-box .big{font-size:34px}
+
+  /* ---------- Pet ---------- */
+  .pet-card{display:flex; align-items:center; gap:18px; transition:background .4s}
+  .pet-card.allclear{background:linear-gradient(120deg,#fff7e0,#ffeef8 60%,#eef1ff)}
+  .pet-stage{
+    position:relative; width:120px; height:120px; flex:none; border-radius:50%;
+    background:radial-gradient(circle at 50% 70%,#e9edff,#f7f8ff 70%); display:grid; place-items:center;
+  }
+  .pet{line-height:1; transition:font-size .45s cubic-bezier(.34,1.56,.64,1); filter:drop-shadow(0 6px 6px rgba(20,30,60,.15))}
+  .pet.pop{animation:pop .7s cubic-bezier(.34,1.56,.64,1)}
+  @keyframes pop{0%{transform:scale(1)}35%{transform:scale(1.35) rotate(-8deg)}65%{transform:scale(.92) rotate(5deg)}100%{transform:scale(1)}}
+  .allclear .pet{animation:hop 1s ease-in-out infinite}
+  @keyframes hop{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .spark{position:absolute; pointer-events:none; font-size:16px; animation:spark .9s ease-out forwards}
+  @keyframes spark{from{opacity:1; transform:translate(0,0) scale(.6)}to{opacity:0; transform:translate(var(--dx),var(--dy)) scale(1.2)}}
+  .pet-info{flex:1; min-width:0}
+  .pet-info h2{display:flex; align-items:center; gap:6px}
+  .pet-info .lv{font-size:13px; margin-bottom:8px}
+  .bar{height:8px; background:#eceef5; border-radius:999px; overflow:hidden; margin-bottom:8px}
+  .bar i{display:block; height:100%; width:0; background:linear-gradient(90deg,#4f6bff,#ec4899); border-radius:999px; transition:width .5s}
+
+  /* ---------- Clock ---------- */
+  .clock-wrap{display:grid; place-items:center; margin:4px 0 8px}
+  #clock{width:100%; max-width:250px; height:auto}
+  #clock .arc{transition:stroke-width .15s, opacity .15s; cursor:pointer}
+  #clock .arc.hl{stroke-width:30}
+  .clock-sum{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .clock-sum div{background:var(--bg); border-radius:10px; padding:8px 10px}
+  .clock-sum span{display:block; font-size:11px; color:var(--sub)}
+  .clock-sum b{font-size:14px}
+  .legend{margin-top:10px; display:flex; flex-direction:column; gap:4px}
+  .legend div{display:flex; align-items:center; gap:8px; font-size:12px}
+  .legend i{width:10px; height:10px; border-radius:3px; flex:none}
+  .legend em{margin-left:auto; font-style:normal; color:var(--sub); font-variant-numeric:tabular-nums}
+
+  #timeCard.editing{box-shadow:0 0 0 2px #f5a524}
+
+  /* ---------- Footer & tap bar ---------- */
+  footer{max-width:1440px; margin:0 auto; padding:4px 22px 90px; color:var(--sub); font-size:12px}
+  footer p+p{margin-top:2px}
+  .tapbar{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:50;
+    background:#1c2233; color:#fff; border-radius:14px; padding:10px 10px 10px 16px;
+    display:flex; align-items:center; gap:12px; box-shadow:0 10px 30px rgba(0,0,0,.25); max-width:calc(100% - 24px); font-size:13px;
+  }
+  .tapbar .btn{background:#2d3550; color:#fff; border-color:#3a4363}
+
+  /* ---------- Responsive ---------- */
+  @media (max-width:1100px){ .layout{grid-template-columns:230px minmax(0,1fr) 280px} }
+  @media (max-width:900px){
+    .top{margin:12px 12px 0}
+    .layout{grid-template-columns:1fr; padding:12px}
+    .left{order:1} .center{order:2} .right{order:3}
+    #catList{display:grid; grid-template-columns:1fr 1fr; gap:0 10px}
+    .pet-card{flex-direction:column; text-align:center}
+    .pet-info h2{justify-content:center}
+  }
+  @media (max-width:420px){
+    #catList{grid-template-columns:1fr}
+    .top h1{font-size:21px}
+  }
+</style>
 </head>
-<body class="min-h-screen flex flex-col text-slate-800">
+<body>
 
-    <!-- Header -->
-    <header class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center">
-            <div>
-                <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                    📅 김민수 <span class="text-blue-600">plan</span>
-                </h1>
-                <p class="text-sm text-slate-500 mt-1">직업: IT 프론트엔드 개발자</p>
-            </div>
-            <div class="mt-4 sm:mt-0 text-sm font-medium text-slate-500 bg-slate-100 px-4 py-2 rounded-full">
-                Today's Schedule Tracker
-            </div>
+<header class="top">
+  <div class="brand">
+    <div class="avatar" id="avatar">김</div>
+    <div>
+      <h1><span id="hName">김민수</span> <span class="plan">plan</span></h1>
+      <p class="sub"><span id="hJob">IT 프론트엔드 개발자</span> · <span id="hDate"></span></p>
+    </div>
+  </div>
+  <div class="stat">
+    <span class="pill">일정 <b id="sTotal">0</b>개</span>
+    <span class="pill">완료 <b id="sDone">0</b>개</span>
+    <span class="pill">계획 <b id="sTime">0분</b></span>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- 왼쪽: 프로필 + 카테고리 -->
+  <aside class="side left">
+    <section class="card">
+      <h2>프로필</h2>
+      <label class="field"><span>이름</span><input id="pName" value="김민수" maxlength="12"></label>
+      <label class="field"><span>직업 · 직책</span><input id="pJob" value="IT 프론트엔드 개발자" maxlength="30"></label>
+    </section>
+    <section class="card">
+      <h2>스케줄 카테고리</h2>
+      <p class="hint">가운데 표로 끌어다 놓으면 일정이 추가돼요. 표의 일정 줄 위에 놓으면 카테고리가 바뀝니다.</p>
+      <div id="editBannerL" class="edit-banner" hidden></div>
+      <div id="catList"></div>
+    </section>
+  </aside>
+
+  <!-- 가운데: 스케줄 표 + 펫 -->
+  <section class="center">
+    <div class="card">
+      <div class="toolbar">
+        <h2>오늘의 스케줄 표</h2>
+        <div class="tools">
+          <button class="btn sm" id="btnSample" type="button">샘플 일정 채우기</button>
+          <button class="btn sm danger" id="btnClear" type="button">모두 비우기</button>
         </div>
-    </header>
+      </div>
+      <div id="dropZone" class="dropzone">
+        <table class="sched">
+          <thead>
+            <tr><th class="c-done">완료</th><th>카테고리</th><th>일정 내용</th><th>시간</th><th class="c-act">관리</th></tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
 
-    <!-- Main Content Grid -->
-    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <!-- LEFT COLUMN: Categories -->
-        <section class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col h-[calc(100vh-140px)] lg:h-auto">
-            <h2 class="text-lg font-semibold mb-4 border-b pb-2 flex items-center gap-2">
-                📂 스케줄 카테고리
-            </h2>
-            <p class="text-xs text-slate-500 mb-4">항목을 가운데 시간표로 드래그하세요.</p>
-            
-            <div class="flex-grow overflow-y-auto custom-scrollbar space-y-3 pr-2" id="categoryList">
-                <!-- Categories will be injected here by JS -->
-            </div>
-        </section>
+    <div class="card pet-card" id="petCard">
+      <div class="pet-stage" id="petStage"><div class="pet" id="pet">🥚</div></div>
+      <div class="pet-info">
+        <h2>나의 펫 <span style="color:var(--accent)">모찌</span></h2>
+        <p class="lv" id="petLv"></p>
+        <div class="bar"><i id="petBar"></i></div>
+        <p class="hint" id="petMsg" style="margin:0"></p>
+      </div>
+    </div>
+  </section>
 
-        <!-- CENTER COLUMN: Schedule Table & Pet -->
-        <section class="lg:col-span-6 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
-            <h2 class="text-lg font-semibold mb-4 border-b pb-2 text-center">
-                오늘의 하루 스케줄 표
-            </h2>
-            
-            <!-- Schedule List / Drop Zones -->
-            <div class="flex-grow overflow-y-auto custom-scrollbar space-y-3" id="scheduleTable">
-                <!-- Rows injected by JS -->
-            </div>
-
-            <!-- Pet Section -->
-            <div class="mt-6 pt-4 border-t border-slate-100 flex flex-col items-center justify-center bg-slate-50 rounded-lg p-4">
-                <h3 class="text-sm font-medium text-slate-500 mb-2">나의 펫 성장도</h3>
-                <div id="petCharacter" class="pet-container pet-bounce">🥚</div>
-                <div class="w-full max-w-xs bg-slate-200 rounded-full h-2.5 mt-4">
-                    <div id="petProgressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
-                </div>
-                <p id="petStatusText" class="text-xs text-slate-500 mt-2">일정을 추가하고 완료해보세요!</p>
-            </div>
-        </section>
-
-        <!-- RIGHT COLUMN: Time Input & Clock -->
-        <section class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
-            <h2 class="text-lg font-semibold mb-4 border-b pb-2 flex items-center gap-2">
-                ⏱️ 시간 관리 및 시계
-            </h2>
-            
-            <!-- 24 Hour Clock Visualization -->
-            <div class="relative w-full aspect-square mb-6 flex justify-center items-center bg-slate-50 rounded-full p-2">
-                <canvas id="clockCanvas" width="300" height="300" class="w-full h-full max-w-[250px] max-h-[250px] drop-shadow-md"></canvas>
-            </div>
-
-            <!-- Time Input Form -->
-            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4">
-                <h3 class="text-sm font-medium mb-3">시간 블록 생성</h3>
-                <div class="flex items-center gap-2 mb-3">
-                    <input type="time" id="startTime" class="w-full text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                    <span class="text-slate-400">~</span>
-                    <input type="time" id="endTime" class="w-full text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                </div>
-                <button onclick="createTimeBlock()" class="w-full bg-slate-800 text-white text-sm font-medium py-2 rounded hover:bg-slate-700 transition">
-                    시간 블록 만들기
-                </button>
-            </div>
-
-            <p class="text-xs text-slate-500 mb-2">생성된 시간을 가운데 표로 드래그하세요.</p>
-            <div class="flex-grow overflow-y-auto custom-scrollbar space-y-2 pr-2" id="timeBlockList">
-                <!-- Generated Time Blocks injected by JS -->
-            </div>
-        </section>
-
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-slate-800 text-slate-300 py-4 mt-auto">
-        <div class="max-w-7xl mx-auto px-4 text-center text-xs">
-            ※ 이 화면은 기획서 내용을 바탕으로 제작된, 가상 인물인 IT 프론트엔드 개발자 김민수의 정보를 사용한 가상 예시입니다.
+  <!-- 오른쪽: 시간 입력 + 시계 -->
+  <aside class="side right">
+    <section class="card" id="timeCard">
+      <h2 id="formTitle">시간 입력</h2>
+      <p class="hint" id="formHint">시간을 적고 카드를 만든 뒤, 카드를 표로 끌어다 놓으세요.</p>
+      <form id="timeForm" autocomplete="off">
+        <div class="row2">
+          <label class="field"><span>시작</span><input type="time" id="fStart"></label>
+          <label class="field"><span>종료</span><input type="time" id="fEnd"></label>
         </div>
-    </footer>
+        <label class="field"><span>일정 내용</span><input id="fTitle" placeholder="예: 스프린트 회고" maxlength="40"></label>
+        <div class="form-btns">
+          <button class="btn primary" type="submit" id="fSubmit">시간 카드 만들기</button>
+          <button class="btn" type="button" id="fCancel" hidden>취소</button>
+        </div>
+        <p class="err" id="fErr"></p>
+      </form>
+      <h3>만든 시간 카드</h3>
+      <p class="hint">일정 줄에 놓으면 시간이 들어가고, 표의 빈 곳에 놓으면 새 일정이 됩니다.</p>
+      <div id="chipList"></div>
+    </section>
 
-    <!-- JavaScript Application Logic -->
-    <script>
-        // --- State Management ---
-        const categories = [
-            { id: 'c1', name: '미팅', type: 'business', color: 'bg-red-100', borderColor: 'border-red-300', hex: '#fca5a5' },
-            { id: 'c2', name: '회의', type: 'business', color: 'bg-orange-100', borderColor: 'border-orange-300', hex: '#fdba74' },
-            { id: 'c3', name: '국내 출장', type: 'trip_dom', color: 'bg-blue-100', borderColor: 'border-blue-300', hex: '#93c5fd' },
-            { id: 'c4', name: '해외 출장', type: 'trip_intl', color: 'bg-indigo-100', borderColor: 'border-indigo-300', hex: '#a5b4fc' },
-            { id: 'c5', name: '전공/본업 수업', type: 'study_main', color: 'bg-green-100', borderColor: 'border-green-300', hex: '#86efac' },
-            { id: 'c6', name: '취미/교양 학원', type: 'study_sub', color: 'bg-purple-100', borderColor: 'border-purple-300', hex: '#d8b4fe' }
-        ];
+    <section class="card">
+      <h2>24시간 시계</h2>
+      <p class="hint">스케줄 표의 시간만큼 카테고리 색으로 채워져요.</p>
+      <div class="clock-wrap"><svg id="clock" viewBox="0 0 260 260" role="img" aria-label="24시간 일정 시계"></svg></div>
+      <div class="clock-sum">
+        <div><span>계획된 시간</span><b id="cPlan">0분</b></div>
+        <div><span>남은 빈 시간</span><b id="cFree">24시간</b></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </section>
+  </aside>
+</main>
 
-        let generatedTimeBlocks = [];
-        
-        // Initialize 7 empty rows for the schedule table
-        let scheduleRows = Array.from({ length: 7 }, (_, i) => ({
-            id: `row-${i}`,
-            categoryId: null,
-            timeStart: null,
-            timeEnd: null,
-            completed: false
-        }));
+<footer>
+  <p>※ 가상 예시: 화면의 ‘김민수(IT 프론트엔드 개발자)’와 샘플 일정은 시연을 위한 가상 인물·가상 데이터입니다.</p>
+  <p>로그인이나 기록 저장 없이 이 HTML 파일 하나로 동작하며, 새로고침하면 처음 상태로 돌아갑니다. 표의 일정은 시간순으로 자동 정렬되지 않고 추가한 순서대로 쌓입니다.</p>
+</footer>
 
-        // --- Initialization ---
-        window.onload = function() {
-            renderCategories();
-            renderTable();
-            drawClock();
-            updatePet();
-            
-            // Set default time inputs to current time just for UX
-            document.getElementById('startTime').value = "09:00";
-            document.getElementById('endTime').value = "10:00";
-        };
+<div class="tapbar" id="tapbar" hidden>
+  <span id="tapText"></span>
+  <button class="btn sm" id="tapCancel" type="button">취소</button>
+</div>
 
-        // --- Rendering Left Column (Categories) ---
-        function renderCategories() {
-            const list = document.getElementById('categoryList');
-            list.innerHTML = categories.map(cat => `
-                <div class="draggable p-3 rounded-lg border ${cat.borderColor} ${cat.color} flex items-center shadow-sm hover:shadow-md transition-shadow"
-                     draggable="true" 
-                     ondragstart="handleDragStart(event, 'category', '${cat.id}')">
-                    <span class="mr-2 opacity-50">⋮⋮</span>
-                    <span class="font-medium text-slate-800 text-sm">${cat.name}</span>
-                </div>
-            `).join('');
-        }
+<script>
+(() => {
+  /* ===== 데이터 ===== */
+  const CATS = [
+    { group:'업무', items:[
+      { id:'meet', name:'미팅', icon:'🤝', color:'#3b82f6' },
+      { id:'conf', name:'회의', icon:'🗂️', color:'#6366f1' },
+    ]},
+    { group:'수업 (본업 / 취미)', items:[
+      { id:'class-main',  name:'전공 수업', tag:'본업·주요', icon:'📘', color:'#0d9488' },
+      { id:'class-hobby', name:'교양 수업', tag:'취미', icon:'📗', color:'#22a35a' },
+    ]},
+    { group:'학원 (본업 / 취미)', items:[
+      { id:'acad-main',  name:'실무·자격 학원', tag:'본업·주요', icon:'🏫', color:'#e08a00' },
+      { id:'acad-hobby', name:'언어·취미 학원', tag:'취미', icon:'🗣️', color:'#e0468f' },
+    ]},
+    { group:'출장', items:[
+      { id:'trip-dom',  name:'국내 출장', tag:'국내', icon:'🚄', color:'#e5484d' },
+      { id:'trip-intl', name:'해외 출장', tag:'해외', icon:'✈️', color:'#0284c7' },
+    ]},
+  ];
+  const SAMPLE = [
+    { cat:'conf',       title:'데일리 스크럼',                 s:'09:30', e:'09:50' },
+    { cat:'meet',       title:'디자이너와 결제 화면 UI 리뷰',    s:'11:00', e:'12:00' },
+    { cat:'trip-dom',   title:'판교 고객사 방문 · 대시보드 시연', s:'14:00', e:'17:00' },
+    { cat:'acad-hobby', title:'영어 회화 학원',                s:'19:30', e:'21:00' },
+    { cat:'class-main', title:'React 성능 최적화 온라인 강의',   s:'21:30', e:'22:30' },
+  ];
+  const STAGES = [
+    { min:0, e:'🥚', n:'알' },
+    { min:1, e:'🐣', n:'부화 중' },
+    { min:2, e:'🐥', n:'아기 병아리' },
+    { min:3, e:'🐤', n:'꼬마 새' },
+    { min:5, e:'🐦', n:'파랑새' },
+    { min:7, e:'🦚', n:'공작새' },
+  ];
+  const NONE_COLOR = '#9aa1b2';
 
-        // --- Rendering Right Column (Time Blocks) ---
-        function createTimeBlock() {
-            const start = document.getElementById('startTime').value;
-            const end = document.getElementById('endTime').value;
-            
-            if (!start || !end) {
-                alert("시작 시간과 종료 시간을 모두 입력해주세요.");
-                return;
-            }
+  /* ===== 상태 ===== */
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let uid = 0; const nid = p => p + (++uid);
+  const catById = {}; CATS.forEach(g => g.items.forEach(c => catById[c.id] = c));
+  const state = {
+    rows: [],
+    chips: [
+      { id:nid('t'), start:'09:30', end:'09:50', title:'데일리 스크럼' },
+      { id:nid('t'), start:'15:00', end:'16:00', title:'스프린트 계획 회의' },
+      { id:nid('t'), start:'19:30', end:'21:00', title:'영어 회화 학원' },
+    ],
+    sel: null,      // 탭 모드에서 고른 카드 {type,id}
+    editId: null,   // 수정 중인 일정 id
+  };
+  const rowById  = id => state.rows.find(r => r.id === id);
+  const chipById = id => state.chips.find(c => c.id === id);
 
-            const id = 'tb-' + Date.now();
-            generatedTimeBlocks.push({ id, start, end });
-            renderTimeBlocks();
-        }
+  const toMin = t => { const [h,m] = t.split(':').map(Number); return h*60 + m; };
+  const spanMin = (s,e) => (toMin(e) - toMin(s) + 1440) % 1440;
+  const durTxt = d => { const h = Math.floor(d/60), m = d % 60; return [h ? h+'시간' : '', m ? m+'분' : ''].filter(Boolean).join(' ') || '0분'; };
 
-        function renderTimeBlocks() {
-            const list = document.getElementById('timeBlockList');
-            list.innerHTML = generatedTimeBlocks.map(tb => `
-                <div class="draggable p-3 rounded-lg border border-slate-300 bg-white flex items-center justify-between shadow-sm hover:border-slate-400 transition-colors"
-                     draggable="true" 
-                     ondragstart="handleDragStart(event, 'time', '${tb.start}|${tb.end}')">
-                    <div class="flex items-center">
-                        <span class="mr-2 text-slate-400">⋮⋮</span>
-                        <span class="font-mono text-sm text-slate-700">🕒 ${tb.start} ~ ${tb.end}</span>
-                    </div>
-                </div>
-            `).join('');
-        }
+  /* ===== 카테고리 목록 (정적) ===== */
+  $('#catList').innerHTML = CATS.map(g => `
+    <div class="cat-group">
+      <div class="cat-gt">${g.group}</div>
+      ${g.items.map(c => `
+        <div class="chip cat" data-drag="cat" data-id="${c.id}" style="--c:${c.color}" title="끌어서 표에 놓기">
+          <span class="ico">${c.icon}</span><span class="nm">${c.name}</span>${c.tag ? `<span class="tag">${c.tag}</span>` : ''}
+        </div>`).join('')}
+    </div>`).join('');
 
-        // --- Rendering Center Column (Table) ---
-        function renderTable() {
-            const table = document.getElementById('scheduleTable');
-            table.innerHTML = scheduleRows.map(row => {
-                const category = categories.find(c => c.id === row.categoryId);
-                const hasData = row.categoryId || row.timeStart;
-                
-                // Styling based on row state
-                const rowBg = row.completed ? 'bg-slate-50 opacity-60' : 'bg-white';
-                const catDisplay = category 
-                    ? `<span class="px-3 py-1 rounded-full text-xs font-semibold ${category.color} ${category.borderColor} border">${category.name}</span>`
-                    : `<span class="text-xs text-slate-400 border border-dashed border-slate-300 px-3 py-1 rounded-full">카테고리 드래그 영역</span>`;
-                
-                const timeDisplay = (row.timeStart && row.timeEnd)
-                    ? `<span class="font-mono text-sm text-slate-700 bg-slate-100 px-2 py-1 rounded">🕒 ${row.timeStart} ~ ${row.timeEnd}</span>`
-                    : `<span class="text-xs text-slate-400 border border-dashed border-slate-300 px-3 py-1 rounded-full">시간 드래그 영역</span>`;
+  /* ===== 렌더링 ===== */
+  function render(){
+    renderHeader(); renderChips(); renderTable(); renderClock(); renderPet(); renderModes();
+  }
 
-                return `
-                    <div class="drop-zone border-2 border-dashed border-slate-200 rounded-lg p-3 flex items-center justify-between gap-4 ${rowBg} transition-all"
-                         ondragover="handleDragOver(event)"
-                         ondragleave="handleDragLeave(event)"
-                         ondrop="handleDrop(event, '${row.id}')">
-                        
-                        <!-- Complete Checkbox -->
-                        <div class="flex items-center justify-center w-8">
-                            ${hasData ? `
-                                <input type="checkbox" 
-                                       class="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
-                                       ${row.completed ? 'checked' : ''}
-                                       onchange="toggleComplete('${row.id}', this.checked)">
-                            ` : `<div class="w-5 h-5 border-2 border-slate-200 rounded"></div>`}
-                        </div>
+  function renderHeader(){
+    const name = $('#pName').value.trim() || '나의';
+    $('#hName').textContent = name;
+    $('#hJob').textContent = $('#pJob').value.trim() || '직업 미입력';
+    $('#avatar').textContent = name.charAt(0);
+    document.title = name + ' plan';
+    $('#sTotal').textContent = state.rows.length;
+    $('#sDone').textContent = state.rows.filter(r => r.done).length;
+  }
 
-                        <!-- Info Area (Read Only in center) -->
-                        <div class="flex-grow grid grid-cols-2 gap-4 items-center">
-                            <div class="flex items-center">${catDisplay}</div>
-                            <div class="flex items-center justify-end md:justify-start">${timeDisplay}</div>
-                        </div>
+  function renderChips(){
+    const box = $('#chipList');
+    if (!state.chips.length){ box.innerHTML = '<div class="empty-chips">위에서 시간을 입력해 카드를 만들어 보세요.</div>'; return; }
+    box.innerHTML = state.chips.map(c => `
+      <div class="chip time ${state.sel && state.sel.id === c.id ? 'selected' : ''}" data-drag="time" data-id="${c.id}" title="끌어서 표에 놓기">
+        <span class="ico">🕒</span><span class="tm">${c.start} – ${c.end}</span>
+        <button class="x" type="button" data-del-chip="${c.id}" aria-label="시간 카드 삭제">×</button>
+        <span class="tt">${c.title ? esc(c.title) : '내용 없음'} · ${durTxt(spanMin(c.start, c.end))}</span>
+      </div>`).join('');
+    document.querySelectorAll('.chip.cat').forEach(el => el.classList.toggle('selected', !!(state.sel && state.sel.id === el.dataset.id)));
+  }
 
-                        <!-- Delete Action -->
-                        <button onclick="clearRow('${row.id}')" class="text-slate-400 hover:text-red-500 transition-colors p-2" title="항목 삭제">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
-                    </div>
-                `;
-            }).join('');
-        }
+  function renderTable(){
+    const tb = $('#tbody');
+    if (!state.rows.length){
+      tb.innerHTML = `<tr class="empty"><td colspan="5"><div class="empty-box">
+        <span class="big">🗓️</span><b>아직 일정이 없어요</b>
+        <span>왼쪽 카테고리나 오른쪽 시간 카드를 이 표로 끌어다 놓으세요.<br>휴대폰에서는 카드를 탭한 다음 표를 탭하면 됩니다.</span>
+      </div></td></tr>`;
+      return;
+    }
+    tb.innerHTML = state.rows.map(r => {
+      const c = catById[r.catId];
+      const col = c ? c.color : NONE_COLOR;
+      const cat = c ? `<span class="badge" style="--c:${col}">${c.icon} ${c.name}</span>` : `<span class="missing">카테고리 미지정</span>`;
+      const next = r.start && toMin(r.end) <= toMin(r.start) ? ' · 다음 날까지' : '';
+      const time = r.start
+        ? `<span class="time">${r.start} – ${r.end}</span><small>${durTxt(spanMin(r.start, r.end))}${next}</small>`
+        : `<span class="missing">시간 미정</span>`;
+      return `<tr data-id="${r.id}" class="${r.done ? 'done' : ''} ${state.editId === r.id ? 'editing' : ''}" style="--c:${col};--tint:${col}1c">
+        <td class="c-done"><input type="checkbox" data-act="done" ${r.done ? 'checked' : ''} aria-label="완료 체크"></td>
+        <td>${cat}</td>
+        <td class="title">${r.title ? esc(r.title) : '<span class="missing">내용 없음</span>'}</td>
+        <td>${time}</td>
+        <td class="c-act">
+          <button class="btn sm" type="button" data-act="edit">${state.editId === r.id ? '수정 중' : '수정'}</button>
+          <button class="btn sm danger" type="button" data-act="del">삭제</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
 
-        // --- Drag and Drop Handlers ---
-        function handleDragStart(e, type, value) {
-            e.dataTransfer.setData('type', type);
-            e.dataTransfer.setData('value', value);
-        }
+  /* 24시간 시계 */
+  const C = 130, R = 92, W = 24;
+  const polar = (min, r) => { const a = (min / 1440) * Math.PI * 2 - Math.PI / 2; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
+  function arcPath(s, d, r){
+    if (d >= 1439) d = 1439.9;
+    const [x1,y1] = polar(s, r), [x2,y2] = polar(s + d, r);
+    return `M${x1.toFixed(2)} ${y1.toFixed(2)} A${r} ${r} 0 ${d > 720 ? 1 : 0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+  }
+  function renderClock(){
+    let s = `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="#eceef5" stroke-width="${W}"/>`;
+    for (let h = 0; h < 24; h++){
+      const major = h % 6 === 0;
+      const [x1,y1] = polar(h*60, R + W/2 + 3), [x2,y2] = polar(h*60, R + W/2 + (major ? 12 : 7));
+      s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${major ? '#8b92a6' : '#c9cdd9'}" stroke-width="${major ? 2 : 1.2}" stroke-linecap="round"/>`;
+      if (h % 3 === 0){
+        const [lx,ly] = polar(h*60, R - W/2 - 13);
+        s += `<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="central" font-size="${major ? 12 : 10}" font-weight="${major ? 700 : 500}" fill="${major ? '#4a5168' : '#9aa1b2'}">${h}</text>`;
+      }
+    }
+    const cov = new Uint8Array(1440);
+    const timed = state.rows.filter(r => r.start);
+    timed.forEach(r => {
+      const st = toMin(r.start), d = spanMin(r.start, r.end) || 1440;
+      for (let i = 0; i < d; i++) cov[(st + i) % 1440] = 1;
+      const col = catById[r.catId] ? catById[r.catId].color : NONE_COLOR;
+      s += `<path class="arc" data-id="${r.id}" d="${arcPath(st, d, R)}" fill="none" stroke="${col}" stroke-width="${W}" opacity="${r.done ? .45 : .9}"><title>${esc(r.title || (catById[r.catId] ? catById[r.catId].name : '일정'))} ${r.start}–${r.end}</title></path>`;
+    });
+    const planned = cov.reduce((a,b) => a + b, 0);
+    // 현재 시각 바늘
+    const now = new Date(), nm = now.getHours()*60 + now.getMinutes();
+    const [hx,hy] = polar(nm, R - W/2 - 26);
+    s += `<line x1="${C}" y1="${C}" x2="${hx}" y2="${hy}" stroke="#1c2233" stroke-width="2.5" stroke-linecap="round" opacity=".75"/>`;
+    s += `<circle cx="${C}" cy="${C}" r="5" fill="#1c2233"/>`;
+    s += `<text x="${C}" y="${C + 26}" text-anchor="middle" font-size="18" font-weight="800" fill="#1c2233">${Math.round(planned / 14.4)}%</text>`;
+    s += `<text x="${C}" y="${C + 41}" text-anchor="middle" font-size="9.5" fill="#6b7285">하루 중 계획</text>`;
+    $('#clock').innerHTML = s;
 
-        function handleDragOver(e) {
-            e.preventDefault(); // Necessary to allow dropping
-            let dropZone = e.target.closest('.drop-zone');
-            if (dropZone) dropZone.classList.add('drag-over');
-        }
+    $('#cPlan').textContent = durTxt(planned);
+    $('#cFree').textContent = durTxt(1440 - planned);
+    $('#sTime').textContent = durTxt(planned);
 
-        function handleDragLeave(e) {
-            let dropZone = e.target.closest('.drop-zone');
-            if (dropZone) dropZone.classList.remove('drag-over');
-        }
+    // 카테고리별 합계
+    const sums = {};
+    timed.forEach(r => { const k = r.catId || 'none'; sums[k] = (sums[k] || 0) + (spanMin(r.start, r.end) || 1440); });
+    const untimed = state.rows.length - timed.length;
+    $('#legend').innerHTML = Object.entries(sums).map(([k,v]) => {
+      const c = catById[k];
+      return `<div><i style="background:${c ? c.color : NONE_COLOR}"></i>${c ? c.name : '카테고리 미지정'}<em>${durTxt(v)}</em></div>`;
+    }).join('') + (untimed ? `<div><i style="background:#fff;border:1px dashed #9aa1b2"></i>시간 미정 일정<em>${untimed}개</em></div>` : '');
+  }
 
-        function handleDrop(e, rowId) {
-            e.preventDefault();
-            let dropZone = e.target.closest('.drop-zone');
-            if (dropZone) dropZone.classList.remove('drag-over');
+  /* 펫 */
+  let prevDone = 0;
+  function renderPet(){
+    const total = state.rows.length, done = state.rows.filter(r => r.done).length;
+    let si = 0; STAGES.forEach((st, i) => { if (done >= st.min) si = i; });
+    const cur = STAGES[si], next = STAGES[si + 1];
+    const pet = $('#pet');
+    pet.textContent = cur.e;
+    pet.style.fontSize = (44 + Math.min(done, 10) * 5) + 'px';
+    $('#petLv').innerHTML = `Lv.${si + 1} <b>${cur.n}</b> · 완료한 일정 ${done}개`;
+    $('#petBar').style.width = (next ? ((done - cur.min) / (next.min - cur.min)) * 100 : 100) + '%';
+    const all = total > 0 && done === total;
+    $('#petMsg').textContent = all
+      ? '오늘 일정을 전부 끝냈어요! 모찌가 신나서 뛰고 있어요 🎉'
+      : next ? `일정을 ${next.min - done}개 더 완료하면 ‘${next.n}’(으)로 자라요.` : '최고 단계까지 성장했어요!';
+    $('#petCard').classList.toggle('allclear', all);
+    if (done > prevDone) celebrate();
+    prevDone = done;
+  }
+  function celebrate(){
+    const pet = $('#pet');
+    pet.classList.remove('pop'); void pet.offsetWidth; pet.classList.add('pop');
+    const stage = $('#petStage');
+    for (let i = 0; i < 8; i++){
+      const sp = document.createElement('span');
+      sp.className = 'spark'; sp.textContent = ['✨','⭐','💖','✨'][i % 4];
+      const a = (i / 8) * Math.PI * 2;
+      sp.style.left = '50%'; sp.style.top = '50%';
+      sp.style.setProperty('--dx', Math.cos(a) * 62 + 'px');
+      sp.style.setProperty('--dy', Math.sin(a) * 62 + 'px');
+      stage.appendChild(sp);
+      setTimeout(() => sp.remove(), 950);
+    }
+  }
 
-            const type = e.dataTransfer.getData('type');
-            const value = e.dataTransfer.getData('value');
-            
-            const rowIndex = scheduleRows.findIndex(r => r.id === rowId);
-            if (rowIndex === -1) return;
+  /* 수정 모드 / 탭 모드 표시 */
+  function renderModes(){
+    const r = state.editId && rowById(state.editId);
+    const editing = !!r;
+    $('#timeCard').classList.toggle('editing', editing);
+    $('#formTitle').textContent = editing ? '✏️ 일정 수정' : '시간 입력';
+    $('#formHint').textContent = editing
+      ? `‘${r.title || (catById[r.catId] ? catById[r.catId].name : '선택한 일정')}’의 시간과 내용을 고친 뒤 ‘수정 적용’을 누르세요.`
+      : '시간을 적고 카드를 만든 뒤, 카드를 표로 끌어다 놓으세요.';
+    $('#fSubmit').textContent = editing ? '수정 적용' : '시간 카드 만들기';
+    $('#fCancel').hidden = !editing;
+    const ban = $('#editBannerL');
+    ban.hidden = !editing;
+    if (editing) ban.textContent = '✏️ 수정 중인 일정이 있어요. 카테고리를 탭하면 그 일정의 카테고리가 바로 바뀝니다.';
 
-            if (type === 'category') {
-                scheduleRows[rowIndex].categoryId = value;
-            } else if (type === 'time') {
-                const [start, end] = value.split('|');
-                scheduleRows[rowIndex].timeStart = start;
-                scheduleRows[rowIndex].timeEnd = end;
-            }
+    const bar = $('#tapbar');
+    bar.hidden = !state.sel;
+    $('#dropZone').classList.toggle('armed', !!state.sel);
+    if (state.sel){
+      const label = state.sel.type === 'cat' ? `‘${catById[state.sel.id].name}’` : (() => { const c = chipById(state.sel.id); return `‘${c.start}–${c.end}’`; })();
+      $('#tapText').textContent = `${label} 선택됨 · 표의 일정 줄이나 빈 곳을 탭하세요`;
+    }
+  }
 
-            // Uncheck if modifying to prevent logic errors on completion
-            scheduleRows[rowIndex].completed = false; 
+  function flash(id){
+    const tr = document.querySelector(`#tbody tr[data-id="${id}"]`);
+    if (!tr) return;
+    tr.classList.add('flash');
+    setTimeout(() => tr.classList.remove('flash'), 950);
+  }
 
-            renderTable();
-            drawClock();
-            updatePet();
-        }
+  /* ===== 사이드바 → 표 반영 ===== */
+  function applyDrop(type, id, el){
+    const tr = el.closest('#tbody tr[data-id]');
+    const zone = el.closest('#dropZone');
+    if (!tr && !zone) return false;
+    let r;
+    if (tr){
+      r = rowById(tr.dataset.id);
+    } else {
+      r = { id:nid('r'), catId:null, title:'', start:null, end:null, done:false };
+      state.rows.push(r);
+    }
+    if (type === 'cat'){
+      r.catId = id;
+    } else {
+      const c = chipById(id); if (!c) return false;
+      r.start = c.start; r.end = c.end;
+      if (!r.title) r.title = c.title;
+    }
+    if (state.editId === r.id) fillForm(r);
+    render(); flash(r.id);
+    return true;
+  }
 
-        // --- Schedule Row Actions ---
-        function toggleComplete(rowId, isChecked) {
-            const row = scheduleRows.find(r => r.id === rowId);
-            if (row) {
-                row.completed = isChecked;
-                renderTable(); // Re-render to update styling
-                updatePet();
-            }
-        }
+  function tap(type, id){
+    if (state.editId){
+      const r = rowById(state.editId);
+      if (type === 'cat') r.catId = id;
+      else { const c = chipById(id); r.start = c.start; r.end = c.end; if (!r.title) r.title = c.title; fillForm(r); }
+      render(); flash(r.id); return;
+    }
+    state.sel = (state.sel && state.sel.id === id) ? null : { type, id };
+    render();
+  }
+  function clearSel(){ state.sel = null; render(); }
 
-        function clearRow(rowId) {
-            const row = scheduleRows.find(r => r.id === rowId);
-            if (row) {
-                row.categoryId = null;
-                row.timeStart = null;
-                row.timeEnd = null;
-                row.completed = false;
-                renderTable();
-                drawClock();
-                updatePet();
-            }
-        }
+  /* ===== 드래그 (마우스·터치 공통) ===== */
+  let drag = null;
+  document.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    const src = e.target.closest('[data-drag]');
+    if (!src || e.target.closest('button')) return;
+    drag = { src, type:src.dataset.drag, id:src.dataset.id, x:e.clientX, y:e.clientY, moved:false, ghost:null, over:null };
+  });
+  document.addEventListener('pointermove', e => {
+    if (!drag) return;
+    if (!drag.moved){
+      if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+      drag.moved = true;
+      const b = drag.src.getBoundingClientRect();
+      const g = drag.src.cloneNode(true);
+      g.classList.add('ghost'); g.classList.remove('selected'); g.removeAttribute('data-drag');
+      g.style.width = b.width + 'px';
+      drag.ox = drag.x - b.left; drag.oy = drag.y - b.top;
+      document.body.appendChild(g);
+      drag.ghost = g;
+      drag.src.classList.add('lifting');
+      document.body.classList.add('is-dragging');
+    }
+    e.preventDefault();
+    drag.ghost.style.transform = `translate(${e.clientX - drag.ox}px, ${e.clientY - drag.oy}px) rotate(-2deg)`;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const t = el ? (el.closest('#tbody tr[data-id]') || el.closest('#dropZone')) : null;
+    if (drag.over !== t){
+      if (drag.over) drag.over.classList.remove('drop-hover');
+      drag.over = t;
+      if (t) t.classList.add('drop-hover');
+    }
+  }, { passive:false });
+  function endDrag(e, cancel){
+    if (!drag) return;
+    const d = drag; drag = null;
+    if (d.over) d.over.classList.remove('drop-hover');
+    document.body.classList.remove('is-dragging');
+    if (d.moved){
+      d.ghost.remove(); d.src.classList.remove('lifting');
+      if (!cancel){
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (el && applyDrop(d.type, d.id, el) && state.sel) clearSel();
+      }
+    } else if (!cancel){
+      tap(d.type, d.id);
+    }
+  }
+  document.addEventListener('pointerup', e => endDrag(e, false));
+  document.addEventListener('pointercancel', e => endDrag(e, true));
 
-        // --- Pet Evolution Logic ---
-        function updatePet() {
-            // A valid task is one that has both category and time defined
-            const validTasks = scheduleRows.filter(r => r.categoryId && r.timeStart);
-            const totalValid = validTasks.length;
-            const completedCount = validTasks.filter(r => r.completed).length;
-            
-            const petEl = document.getElementById('petCharacter');
-            const barEl = document.getElementById('petProgressBar');
-            const statusEl = document.getElementById('petStatusText');
+  // 탭 모드: 카드 선택 후 표 탭
+  $('#dropZone').addEventListener('click', e => {
+    if (!state.sel || e.target.closest('button,input')) return;
+    const { type, id } = state.sel;
+    state.sel = null;
+    if (!applyDrop(type, id, e.target)) render();
+  });
+  $('#tapCancel').addEventListener('click', clearSel);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape'){ if (state.sel) clearSel(); else if (state.editId) endEdit(); }
+  });
 
-            if (totalValid === 0) {
-                petEl.innerText = "🥚";
-                barEl.style.width = "0%";
-                statusEl.innerText = "스케줄을 추가하고 시간을 배정해주세요!";
-                return;
-            }
+  /* ===== 표 안의 버튼: 완료 체크 / 수정 / 삭제 ===== */
+  $('#tbody').addEventListener('change', e => {
+    if (e.target.dataset.act !== 'done') return;
+    const r = rowById(e.target.closest('tr').dataset.id);
+    r.done = e.target.checked;
+    render();
+  });
+  $('#tbody').addEventListener('click', e => {
+    const btn = e.target.closest('button[data-act]'); if (!btn) return;
+    const id = btn.closest('tr').dataset.id;
+    if (btn.dataset.act === 'del'){
+      state.rows = state.rows.filter(r => r.id !== id);
+      if (state.editId === id) endEdit(true);
+      render();
+    } else if (btn.dataset.act === 'edit'){
+      if (state.editId === id){ endEdit(); return; }
+      startEdit(id);
+    }
+  });
 
-            const ratio = completedCount / totalValid;
-            const percent = Math.round(ratio * 100);
-            barEl.style.width = `${percent}%`;
+  // 표 ↔ 시계 하이라이트 연동
+  function hl(id){
+    document.querySelectorAll('.hl').forEach(x => x.classList.remove('hl'));
+    if (id) document.querySelectorAll(`#tbody tr[data-id="${id}"], #clock .arc[data-id="${id}"]`).forEach(x => x.classList.add('hl'));
+  }
+  $('#tbody').addEventListener('mouseover', e => { const tr = e.target.closest('tr[data-id]'); hl(tr ? tr.dataset.id : null); });
+  $('#tbody').addEventListener('mouseleave', () => hl(null));
+  $('#clock').addEventListener('mouseover', e => { const p = e.target.closest('.arc'); hl(p ? p.dataset.id : null); });
+  $('#clock').addEventListener('mouseleave', () => hl(null));
 
-            if (percent === 0) {
-                petEl.innerText = "🥚";
-                statusEl.innerText = `성장도 0% - 시작이 반입니다!`;
-            } else if (percent > 0 && percent <= 33) {
-                petEl.innerText = "🐣";
-                statusEl.innerText = `성장도 ${percent}% - 알에서 깨어났어요!`;
-            } else if (percent > 33 && percent <= 66) {
-                petEl.innerText = "🐥";
-                statusEl.innerText = `성장도 ${percent}% - 무럭무럭 자라고 있어요!`;
-            } else if (percent > 66 && percent < 100) {
-                petEl.innerText = "🐔";
-                statusEl.innerText = `성장도 ${percent}% - 거의 다 컸네요!`;
-            } else if (percent === 100) {
-                petEl.innerText = "🐉"; // Max evolution!
-                statusEl.innerText = `성장도 100% - 완벽한 하루! 전설의 펫이 되었습니다!`;
-                // Trigger celebratory animation
-                petEl.classList.remove('pet-bounce');
-                void petEl.offsetWidth; // trigger reflow
-                petEl.classList.add('pet-bounce');
-            }
-        }
+  /* ===== 오른쪽 폼: 시간 카드 만들기 / 일정 수정 ===== */
+  function fillForm(r){
+    $('#fStart').value = r.start || '';
+    $('#fEnd').value = r.end || '';
+    $('#fTitle').value = r.title || '';
+  }
+  function startEdit(id){
+    state.editId = id; state.sel = null;
+    fillForm(rowById(id));
+    $('#fErr').textContent = '';
+    render();
+    if (window.innerWidth <= 900) $('#timeCard').scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+  function endEdit(silent){
+    state.editId = null;
+    $('#fTitle').value = ''; $('#fErr').textContent = '';
+    if (!silent) render();
+  }
+  $('#fCancel').addEventListener('click', () => endEdit());
+  $('#timeForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const s = $('#fStart').value, en = $('#fEnd').value, t = $('#fTitle').value.trim();
+    const err = $('#fErr');
+    if (!s || !en){ err.textContent = '시작과 종료 시간을 모두 입력하세요.'; return; }
+    if (s === en){ err.textContent = '시작과 종료 시간이 같아요.'; return; }
+    err.textContent = '';
+    if (state.editId){
+      const r = rowById(state.editId);
+      r.start = s; r.end = en; r.title = t;
+      const id = r.id;
+      endEdit(); flash(id);
+    } else {
+      state.chips.unshift({ id:nid('t'), start:s, end:en, title:t });
+      $('#fTitle').value = '';
+      render();
+    }
+  });
+  $('#chipList').addEventListener('click', e => {
+    const x = e.target.closest('[data-del-chip]'); if (!x) return;
+    const id = x.dataset.delChip;
+    state.chips = state.chips.filter(c => c.id !== id);
+    if (state.sel && state.sel.id === id) state.sel = null;
+    render();
+  });
 
-        // --- 24-Hour Clock Canvas Logic ---
-        function parseTimeFloat(timeStr) {
-            if (!timeStr) return 0;
-            const [h, m] = timeStr.split(':').map(Number);
-            return h + (m / 60);
-        }
+  /* ===== 프로필 / 툴바 ===== */
+  $('#pName').addEventListener('input', renderHeader);
+  $('#pJob').addEventListener('input', renderHeader);
+  $('#btnSample').addEventListener('click', () => {
+    if (state.rows.length && !confirm('지금 표의 일정을 지우고 샘플 일정으로 채울까요?')) return;
+    state.editId = null; state.sel = null; prevDone = 0;
+    state.rows = SAMPLE.map(x => ({ id:nid('r'), catId:x.cat, title:x.title, start:x.s, end:x.e, done:false }));
+    render();
+  });
+  $('#btnClear').addEventListener('click', () => {
+    if (!state.rows.length) return;
+    if (!confirm('스케줄 표의 일정을 모두 지울까요?')) return;
+    state.rows = []; state.editId = null; prevDone = 0;
+    render();
+  });
 
-        function timeToAngle(hours) {
-            // 24 hours = 2 * PI radians. 00:00 starts at top (-PI/2)
-            return (hours / 24) * 2 * Math.PI - (Math.PI / 2);
-        }
-
-        function drawClock() {
-            const canvas = document.getElementById('clockCanvas');
-            const ctx = canvas.getContext('2d');
-            const width = canvas.width;
-            const height = canvas.height;
-            const cx = width / 2;
-            const cy = height / 2;
-            const radius = Math.min(cx, cy) - 25; // padding for text
-
-            ctx.clearRect(0, 0, width, height);
-
-            // Draw Clock Face Base
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-            ctx.fillStyle = '#ffffff';
-            ctx.fill();
-            ctx.strokeStyle = '#e2e8f0'; // slate-200
-            ctx.lineWidth = 4;
-            ctx.stroke();
-
-            // Draw Schedule Slices
-            scheduleRows.forEach(row => {
-                if (row.timeStart && row.timeEnd) {
-                    const category = categories.find(c => c.id === row.categoryId);
-                    const color = category ? category.hex : '#94a3b8'; // default slate-400 if no category
-
-                    let startH = parseTimeFloat(row.timeStart);
-                    let endH = parseTimeFloat(row.timeEnd);
-                    
-                    // Handle overnight schedules simply by capping at 24 or drawing two arcs (simplified to assume same day)
-                    if (endH < startH) {
-                        endH = 24; // Simplify: cap at midnight if input is reversed or overnight
-                    }
-
-                    const startAngle = timeToAngle(startH);
-                    const endAngle = timeToAngle(endH);
-
-                    ctx.beginPath();
-                    ctx.moveTo(cx, cy);
-                    ctx.arc(cx, cy, radius, startAngle, endAngle);
-                    ctx.fillStyle = color;
-                    ctx.fill();
-                    
-                    // Slice Border
-                    ctx.beginPath();
-                    ctx.moveTo(cx, cy);
-                    ctx.arc(cx, cy, radius, startAngle, endAngle);
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                }
-            });
-
-            // Draw center dot
-            ctx.beginPath();
-            ctx.arc(cx, cy, 6, 0, 2 * Math.PI);
-            ctx.fillStyle = '#475569'; // slate-600
-            ctx.fill();
-
-            // Draw Clock Ticks & Text
-            ctx.fillStyle = '#64748b'; // slate-500
-            ctx.font = 'bold 12px Inter, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-
-            for (let h = 0; h < 24; h++) {
-                const angle = timeToAngle(h);
-                const isMajor = h % 6 === 0;
-                
-                // Ticks
-                const tickStartR = isMajor ? radius - 8 : radius - 4;
-                const x1 = cx + Math.cos(angle) * tickStartR;
-                const y1 = cy + Math.sin(angle) * tickStartR;
-                const x2 = cx + Math.cos(angle) * radius;
-                const y2 = cy + Math.sin(angle) * radius;
-
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                ctx.strokeStyle = isMajor ? '#64748b' : '#cbd5e1';
-                ctx.lineWidth = isMajor ? 2 : 1;
-                ctx.stroke();
-
-                // Text for 0, 6, 12, 18
-                if (isMajor) {
-                    const textR = radius + 15;
-                    const tx = cx + Math.cos(angle) * textR;
-                    const ty = cy + Math.sin(angle) * textR;
-                    ctx.fillText(h === 0 ? '24/0' : h, tx, ty);
-                }
-            }
-        }
-    </script>
+  $('#hDate').textContent = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric', weekday:'short' });
+  setInterval(renderClock, 30000);
+  render();
+})();
+</script>
 </body>
 </html>

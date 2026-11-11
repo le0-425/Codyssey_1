@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>김민수 plan - 하루 시간 및 스케줄 관리</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom Styles for Drag and Drop & Animations */
+        body { font-family: 'Inter', 'Noto Sans KR', sans-serif; background-color: #f8fafc; }
+        .draggable { cursor: grab; }
+        .draggable:active { cursor: grabbing; }
+        .drop-zone { transition: background-color 0.2s ease; }
+        .drop-zone.drag-over { background-color: #e0f2fe !important; border-color: #3b82f6 !important; }
+        
+        .pet-container {
+            font-size: 4rem;
+            transition: transform 0.3s ease;
+        }
+        .pet-bounce {
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        /* Custom Scrollbar for list areas */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                    📅 김민수 <span class="text-blue-600">plan</span>
+                </h1>
+                <p class="text-sm text-slate-500 mt-1">직업: IT 프론트엔드 개발자</p>
+            </div>
+            <div class="mt-4 sm:mt-0 text-sm font-medium text-slate-500 bg-slate-100 px-4 py-2 rounded-full">
+                Today's Schedule Tracker
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- LEFT COLUMN: Categories -->
+        <section class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col h-[calc(100vh-140px)] lg:h-auto">
+            <h2 class="text-lg font-semibold mb-4 border-b pb-2 flex items-center gap-2">
+                📂 스케줄 카테고리
+            </h2>
+            <p class="text-xs text-slate-500 mb-4">항목을 가운데 시간표로 드래그하세요.</p>
+            
+            <div class="flex-grow overflow-y-auto custom-scrollbar space-y-3 pr-2" id="categoryList">
+                <!-- Categories will be injected here by JS -->
+            </div>
+        </section>
+
+        <!-- CENTER COLUMN: Schedule Table & Pet -->
+        <section class="lg:col-span-6 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
+            <h2 class="text-lg font-semibold mb-4 border-b pb-2 text-center">
+                오늘의 하루 스케줄 표
+            </h2>
+            
+            <!-- Schedule List / Drop Zones -->
+            <div class="flex-grow overflow-y-auto custom-scrollbar space-y-3" id="scheduleTable">
+                <!-- Rows injected by JS -->
+            </div>
+
+            <!-- Pet Section -->
+            <div class="mt-6 pt-4 border-t border-slate-100 flex flex-col items-center justify-center bg-slate-50 rounded-lg p-4">
+                <h3 class="text-sm font-medium text-slate-500 mb-2">나의 펫 성장도</h3>
+                <div id="petCharacter" class="pet-container pet-bounce">🥚</div>
+                <div class="w-full max-w-xs bg-slate-200 rounded-full h-2.5 mt-4">
+                    <div id="petProgressBar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+                <p id="petStatusText" class="text-xs text-slate-500 mt-2">일정을 추가하고 완료해보세요!</p>
+            </div>
+        </section>
+
+        <!-- RIGHT COLUMN: Time Input & Clock -->
+        <section class="lg:col-span-3 bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
+            <h2 class="text-lg font-semibold mb-4 border-b pb-2 flex items-center gap-2">
+                ⏱️ 시간 관리 및 시계
+            </h2>
+            
+            <!-- 24 Hour Clock Visualization -->
+            <div class="relative w-full aspect-square mb-6 flex justify-center items-center bg-slate-50 rounded-full p-2">
+                <canvas id="clockCanvas" width="300" height="300" class="w-full h-full max-w-[250px] max-h-[250px] drop-shadow-md"></canvas>
+            </div>
+
+            <!-- Time Input Form -->
+            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-4">
+                <h3 class="text-sm font-medium mb-3">시간 블록 생성</h3>
+                <div class="flex items-center gap-2 mb-3">
+                    <input type="time" id="startTime" class="w-full text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <span class="text-slate-400">~</span>
+                    <input type="time" id="endTime" class="w-full text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <button onclick="createTimeBlock()" class="w-full bg-slate-800 text-white text-sm font-medium py-2 rounded hover:bg-slate-700 transition">
+                    시간 블록 만들기
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-500 mb-2">생성된 시간을 가운데 표로 드래그하세요.</p>
+            <div class="flex-grow overflow-y-auto custom-scrollbar space-y-2 pr-2" id="timeBlockList">
+                <!-- Generated Time Blocks injected by JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-slate-300 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs">
+            ※ 이 화면은 기획서 내용을 바탕으로 제작된, 가상 인물인 IT 프론트엔드 개발자 김민수의 정보를 사용한 가상 예시입니다.
+        </div>
+    </footer>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // --- State Management ---
+        const categories = [
+            { id: 'c1', name: '미팅', type: 'business', color: 'bg-red-100', borderColor: 'border-red-300', hex: '#fca5a5' },
+            { id: 'c2', name: '회의', type: 'business', color: 'bg-orange-100', borderColor: 'border-orange-300', hex: '#fdba74' },
+            { id: 'c3', name: '국내 출장', type: 'trip_dom', color: 'bg-blue-100', borderColor: 'border-blue-300', hex: '#93c5fd' },
+            { id: 'c4', name: '해외 출장', type: 'trip_intl', color: 'bg-indigo-100', borderColor: 'border-indigo-300', hex: '#a5b4fc' },
+            { id: 'c5', name: '전공/본업 수업', type: 'study_main', color: 'bg-green-100', borderColor: 'border-green-300', hex: '#86efac' },
+            { id: 'c6', name: '취미/교양 학원', type: 'study_sub', color: 'bg-purple-100', borderColor: 'border-purple-300', hex: '#d8b4fe' }
+        ];
+
+        let generatedTimeBlocks = [];
+        
+        // Initialize 7 empty rows for the schedule table
+        let scheduleRows = Array.from({ length: 7 }, (_, i) => ({
+            id: `row-${i}`,
+            categoryId: null,
+            timeStart: null,
+            timeEnd: null,
+            completed: false
+        }));
+
+        // --- Initialization ---
+        window.onload = function() {
+            renderCategories();
+            renderTable();
+            drawClock();
+            updatePet();
+            
+            // Set default time inputs to current time just for UX
+            document.getElementById('startTime').value = "09:00";
+            document.getElementById('endTime').value = "10:00";
+        };
+
+        // --- Rendering Left Column (Categories) ---
+        function renderCategories() {
+            const list = document.getElementById('categoryList');
+            list.innerHTML = categories.map(cat => `
+                <div class="draggable p-3 rounded-lg border ${cat.borderColor} ${cat.color} flex items-center shadow-sm hover:shadow-md transition-shadow"
+                     draggable="true" 
+                     ondragstart="handleDragStart(event, 'category', '${cat.id}')">
+                    <span class="mr-2 opacity-50">⋮⋮</span>
+                    <span class="font-medium text-slate-800 text-sm">${cat.name}</span>
+                </div>
+            `).join('');
+        }
+
+        // --- Rendering Right Column (Time Blocks) ---
+        function createTimeBlock() {
+            const start = document.getElementById('startTime').value;
+            const end = document.getElementById('endTime').value;
+            
+            if (!start || !end) {
+                alert("시작 시간과 종료 시간을 모두 입력해주세요.");
+                return;
+            }
+
+            const id = 'tb-' + Date.now();
+            generatedTimeBlocks.push({ id, start, end });
+            renderTimeBlocks();
+        }
+
+        function renderTimeBlocks() {
+            const list = document.getElementById('timeBlockList');
+            list.innerHTML = generatedTimeBlocks.map(tb => `
+                <div class="draggable p-3 rounded-lg border border-slate-300 bg-white flex items-center justify-between shadow-sm hover:border-slate-400 transition-colors"
+                     draggable="true" 
+                     ondragstart="handleDragStart(event, 'time', '${tb.start}|${tb.end}')">
+                    <div class="flex items-center">
+                        <span class="mr-2 text-slate-400">⋮⋮</span>
+                        <span class="font-mono text-sm text-slate-700">🕒 ${tb.start} ~ ${tb.end}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- Rendering Center Column (Table) ---
+        function renderTable() {
+            const table = document.getElementById('scheduleTable');
+            table.innerHTML = scheduleRows.map(row => {
+                const category = categories.find(c => c.id === row.categoryId);
+                const hasData = row.categoryId || row.timeStart;
+                
+                // Styling based on row state
+                const rowBg = row.completed ? 'bg-slate-50 opacity-60' : 'bg-white';
+                const catDisplay = category 
+                    ? `<span class="px-3 py-1 rounded-full text-xs font-semibold ${category.color} ${category.borderColor} border">${category.name}</span>`
+                    : `<span class="text-xs text-slate-400 border border-dashed border-slate-300 px-3 py-1 rounded-full">카테고리 드래그 영역</span>`;
+                
+                const timeDisplay = (row.timeStart && row.timeEnd)
+                    ? `<span class="font-mono text-sm text-slate-700 bg-slate-100 px-2 py-1 rounded">🕒 ${row.timeStart} ~ ${row.timeEnd}</span>`
+                    : `<span class="text-xs text-slate-400 border border-dashed border-slate-300 px-3 py-1 rounded-full">시간 드래그 영역</span>`;
+
+                return `
+                    <div class="drop-zone border-2 border-dashed border-slate-200 rounded-lg p-3 flex items-center justify-between gap-4 ${rowBg} transition-all"
+                         ondragover="handleDragOver(event)"
+                         ondragleave="handleDragLeave(event)"
+                         ondrop="handleDrop(event, '${row.id}')">
+                        
+                        <!-- Complete Checkbox -->
+                        <div class="flex items-center justify-center w-8">
+                            ${hasData ? `
+                                <input type="checkbox" 
+                                       class="w-5 h-5 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"
+                                       ${row.completed ? 'checked' : ''}
+                                       onchange="toggleComplete('${row.id}', this.checked)">
+                            ` : `<div class="w-5 h-5 border-2 border-slate-200 rounded"></div>`}
+                        </div>
+
+                        <!-- Info Area (Read Only in center) -->
+                        <div class="flex-grow grid grid-cols-2 gap-4 items-center">
+                            <div class="flex items-center">${catDisplay}</div>
+                            <div class="flex items-center justify-end md:justify-start">${timeDisplay}</div>
+                        </div>
+
+                        <!-- Delete Action -->
+                        <button onclick="clearRow('${row.id}')" class="text-slate-400 hover:text-red-500 transition-colors p-2" title="항목 삭제">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- Drag and Drop Handlers ---
+        function handleDragStart(e, type, value) {
+            e.dataTransfer.setData('type', type);
+            e.dataTransfer.setData('value', value);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault(); // Necessary to allow dropping
+            let dropZone = e.target.closest('.drop-zone');
+            if (dropZone) dropZone.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            let dropZone = e.target.closest('.drop-zone');
+            if (dropZone) dropZone.classList.remove('drag-over');
+        }
+
+        function handleDrop(e, rowId) {
+            e.preventDefault();
+            let dropZone = e.target.closest('.drop-zone');
+            if (dropZone) dropZone.classList.remove('drag-over');
+
+            const type = e.dataTransfer.getData('type');
+            const value = e.dataTransfer.getData('value');
+            
+            const rowIndex = scheduleRows.findIndex(r => r.id === rowId);
+            if (rowIndex === -1) return;
+
+            if (type === 'category') {
+                scheduleRows[rowIndex].categoryId = value;
+            } else if (type === 'time') {
+                const [start, end] = value.split('|');
+                scheduleRows[rowIndex].timeStart = start;
+                scheduleRows[rowIndex].timeEnd = end;
+            }
+
+            // Uncheck if modifying to prevent logic errors on completion
+            scheduleRows[rowIndex].completed = false; 
+
+            renderTable();
+            drawClock();
+            updatePet();
+        }
+
+        // --- Schedule Row Actions ---
+        function toggleComplete(rowId, isChecked) {
+            const row = scheduleRows.find(r => r.id === rowId);
+            if (row) {
+                row.completed = isChecked;
+                renderTable(); // Re-render to update styling
+                updatePet();
+            }
+        }
+
+        function clearRow(rowId) {
+            const row = scheduleRows.find(r => r.id === rowId);
+            if (row) {
+                row.categoryId = null;
+                row.timeStart = null;
+                row.timeEnd = null;
+                row.completed = false;
+                renderTable();
+                drawClock();
+                updatePet();
+            }
+        }
+
+        // --- Pet Evolution Logic ---
+        function updatePet() {
+            // A valid task is one that has both category and time defined
+            const validTasks = scheduleRows.filter(r => r.categoryId && r.timeStart);
+            const totalValid = validTasks.length;
+            const completedCount = validTasks.filter(r => r.completed).length;
+            
+            const petEl = document.getElementById('petCharacter');
+            const barEl = document.getElementById('petProgressBar');
+            const statusEl = document.getElementById('petStatusText');
+
+            if (totalValid === 0) {
+                petEl.innerText = "🥚";
+                barEl.style.width = "0%";
+                statusEl.innerText = "스케줄을 추가하고 시간을 배정해주세요!";
+                return;
+            }
+
+            const ratio = completedCount / totalValid;
+            const percent = Math.round(ratio * 100);
+            barEl.style.width = `${percent}%`;
+
+            if (percent === 0) {
+                petEl.innerText = "🥚";
+                statusEl.innerText = `성장도 0% - 시작이 반입니다!`;
+            } else if (percent > 0 && percent <= 33) {
+                petEl.innerText = "🐣";
+                statusEl.innerText = `성장도 ${percent}% - 알에서 깨어났어요!`;
+            } else if (percent > 33 && percent <= 66) {
+                petEl.innerText = "🐥";
+                statusEl.innerText = `성장도 ${percent}% - 무럭무럭 자라고 있어요!`;
+            } else if (percent > 66 && percent < 100) {
+                petEl.innerText = "🐔";
+                statusEl.innerText = `성장도 ${percent}% - 거의 다 컸네요!`;
+            } else if (percent === 100) {
+                petEl.innerText = "🐉"; // Max evolution!
+                statusEl.innerText = `성장도 100% - 완벽한 하루! 전설의 펫이 되었습니다!`;
+                // Trigger celebratory animation
+                petEl.classList.remove('pet-bounce');
+                void petEl.offsetWidth; // trigger reflow
+                petEl.classList.add('pet-bounce');
+            }
+        }
+
+        // --- 24-Hour Clock Canvas Logic ---
+        function parseTimeFloat(timeStr) {
+            if (!timeStr) return 0;
+            const [h, m] = timeStr.split(':').map(Number);
+            return h + (m / 60);
+        }
+
+        function timeToAngle(hours) {
+            // 24 hours = 2 * PI radians. 00:00 starts at top (-PI/2)
+            return (hours / 24) * 2 * Math.PI - (Math.PI / 2);
+        }
+
+        function drawClock() {
+            const canvas = document.getElementById('clockCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const cx = width / 2;
+            const cy = height / 2;
+            const radius = Math.min(cx, cy) - 25; // padding for text
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw Clock Face Base
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.strokeStyle = '#e2e8f0'; // slate-200
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // Draw Schedule Slices
+            scheduleRows.forEach(row => {
+                if (row.timeStart && row.timeEnd) {
+                    const category = categories.find(c => c.id === row.categoryId);
+                    const color = category ? category.hex : '#94a3b8'; // default slate-400 if no category
+
+                    let startH = parseTimeFloat(row.timeStart);
+                    let endH = parseTimeFloat(row.timeEnd);
+                    
+                    // Handle overnight schedules simply by capping at 24 or drawing two arcs (simplified to assume same day)
+                    if (endH < startH) {
+                        endH = 24; // Simplify: cap at midnight if input is reversed or overnight
+                    }
+
+                    const startAngle = timeToAngle(startH);
+                    const endAngle = timeToAngle(endH);
+
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.arc(cx, cy, radius, startAngle, endAngle);
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                    
+                    // Slice Border
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.arc(cx, cy, radius, startAngle, endAngle);
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+            });
+
+            // Draw center dot
+            ctx.beginPath();
+            ctx.arc(cx, cy, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = '#475569'; // slate-600
+            ctx.fill();
+
+            // Draw Clock Ticks & Text
+            ctx.fillStyle = '#64748b'; // slate-500
+            ctx.font = 'bold 12px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            for (let h = 0; h < 24; h++) {
+                const angle = timeToAngle(h);
+                const isMajor = h % 6 === 0;
+                
+                // Ticks
+                const tickStartR = isMajor ? radius - 8 : radius - 4;
+                const x1 = cx + Math.cos(angle) * tickStartR;
+                const y1 = cy + Math.sin(angle) * tickStartR;
+                const x2 = cx + Math.cos(angle) * radius;
+                const y2 = cy + Math.sin(angle) * radius;
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = isMajor ? '#64748b' : '#cbd5e1';
+                ctx.lineWidth = isMajor ? 2 : 1;
+                ctx.stroke();
+
+                // Text for 0, 6, 12, 18
+                if (isMajor) {
+                    const textR = radius + 15;
+                    const tx = cx + Math.cos(angle) * textR;
+                    const ty = cy + Math.sin(angle) * textR;
+                    ctx.fillText(h === 0 ? '24/0' : h, tx, ty);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
