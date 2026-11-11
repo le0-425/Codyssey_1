@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>내 영화 티어리스트</title>
+  <style>
+    :root { --paper:#faf8f3; --ink:#242922; --muted:#5f685d; --line:#d9dad1; --green:#276453; --sage:#e3eee7; --peach:#f2e6dc; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font-family:system-ui,-apple-system,sans-serif; line-height:1.6;  }
+    main { width:min(100% - 32px,860px); margin:32px auto 48px; }
+    header { display:flex; align-items:start; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+    h1 { margin:0; font-size:clamp(26px,5vw,34px); line-height:1.25; letter-spacing:-.03em; }
+    .sub { margin:10px 0 0; color:var(--muted); max-width:46ch; }
+    .tools { display:flex; flex-wrap:wrap; gap:8px; width:100%; margin-top:20px; }
+    .tools input { min-width:0; flex:1 1 160px; border:1.5px solid var(--line); border-radius:12px; padding:11px 12px; font:inherit; }
+    button { font:inherit; cursor:pointer; }
+    .tools button { padding:10px 15px; border:1px solid var(--green); border-radius:12px; font-weight:700; background:var(--green); color:#fff; }
+    .tools .reset { color:var(--green); background:#fff; }
+    #message { min-height:26px; margin:14px 0; font-size:14px; color:var(--muted); }
+    .tiers { display:grid; gap:10px; }
+    .row { position:relative; display:flex; min-height:90px; background:#fff; border:1.5px solid var(--line); border-radius:14px; overflow:hidden; }
+    .row.over { outline:3px solid var(--green); outline-offset:1px; }
+    .label { width:64px; flex-shrink:0; border:0; color:white; font-size:26px; font-weight:800; padding:12px 4px; }
+    .S .label { background:#a55239; } .A .label { background:#b4763e; } .B .label { background:#276453; } .C .label { background:#67725d; }
+    .tier-count { position:absolute; left:8px; bottom:6px; z-index:1; max-width:52px; color:#fff; font-size:13px; font-weight:700; line-height:1.2; pointer-events:none; }
+    .drop { flex:1; min-width:0; display:flex; flex-wrap:wrap; align-content:flex-start; gap:9px; padding:12px; min-height:88px; }
+    .pool { margin-top:22px; }
+    .pool-head { margin:0 0 8px; border:0; padding:0; background:transparent; color:var(--muted); font-size:17px; font-weight:700; text-align:left; }
+    #pool { border:1.5px dashed var(--line); border-radius:14px; background:#fff; }
+    .card { position:relative; width:98px; min-height:62px; padding:8px; border:1px solid transparent; border-radius:10px; font-size:14px; font-weight:650; line-height:1.35; overflow-wrap:anywhere; color:var(--ink); cursor:grab; touch-action:manipulation; }
+    .card[aria-pressed="true"] { outline:3px solid var(--green); outline-offset:2px; }
+    .card .title { display:block; }
+    .card .genre { display:block; margin-top:3px; font-size:11px; font-weight:500; line-height:1.3; color:var(--muted); }
+    .count { display:block; font-size:14px; font-weight:600; }
+    .note { font-size:13px; color:var(--muted); margin-top:18px; }
+    :focus-visible { outline:3px solid #ba613a; outline-offset:3px; }
+
+    /* 등급표에 들어간 카드: 등급 색깔 글리터 효과 */
+    .glitter { box-shadow:0 0 0 1.5px var(--glow), 0 0 10px 2px var(--glow-soft); animation:glow 2.4s ease-in-out infinite; }
+    .glitter::before, .glitter::after { content:""; position:absolute; inset:-6px; border-radius:14px; pointer-events:none; background-repeat:no-repeat; background-size:7px 7px; opacity:.9; }
+    .glitter::before {
+      background-image:
+        radial-gradient(circle, var(--glow) 0 1.6px, transparent 2.8px),
+        radial-gradient(circle, #fff 0 1.3px, transparent 2.4px),
+        radial-gradient(circle, var(--glow) 0 1.3px, transparent 2.4px),
+        radial-gradient(circle, #fff 0 1.6px, transparent 2.8px);
+      background-position:0% 18%, 100% 8%, 12% 100%, 88% 96%;
+      animation:twinkle 1.6s ease-in-out infinite;
+    }
+    .glitter::after {
+      background-image:
+        radial-gradient(circle, #fff 0 1.3px, transparent 2.4px),
+        radial-gradient(circle, var(--glow) 0 1.6px, transparent 2.8px),
+        radial-gradient(circle, #fff 0 1.3px, transparent 2.4px),
+        radial-gradient(circle, var(--glow) 0 1.3px, transparent 2.4px);
+      background-position:50% 0%, 100% 62%, 45% 100%, 0% 70%;
+      animation:twinkle 1.6s ease-in-out .8s infinite;
+    }
+    .g-S { --glow:#a55239; --glow-soft:rgba(165,82,57,.55); }
+    .g-A { --glow:#b4763e; --glow-soft:rgba(180,118,62,.55); }
+    .g-B { --glow:#276453; --glow-soft:rgba(39,100,83,.55); }
+    .g-C { --glow:#67725d; --glow-soft:rgba(103,114,93,.55); }
+    @keyframes glow { 0%,100% { box-shadow:0 0 0 1.5px var(--glow), 0 0 6px 1px var(--glow-soft); } 50% { box-shadow:0 0 0 1.5px var(--glow), 0 0 13px 3px var(--glow-soft); } }
+    @keyframes twinkle { 0%,100% { opacity:.15; transform:scale(.96); } 50% { opacity:1; transform:scale(1.03); } }
+    @media (prefers-reduced-motion:reduce) { .glitter, .glitter::before, .glitter::after { animation:none; } }
+
+    /* 장르 선택 창 */
+    dialog { width:min(92vw,420px); border:1.5px solid var(--line); border-radius:16px; padding:20px; color:var(--ink); background:#fff; }
+    dialog::backdrop { background:rgba(36,41,34,.45); }
+    dialog h2 { margin:0 0 4px; font-size:19px; line-height:1.35; overflow-wrap:anywhere; }
+    dialog p { margin:0 0 14px; font-size:14px; color:var(--muted); }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { padding:7px 13px; border:1.5px solid var(--line); border-radius:999px; background:#fff; color:var(--ink); font-size:14px; font-weight:600; }
+    .chip[aria-pressed="true"] { border-color:var(--green); background:var(--green); color:#fff; }
+    .dialog-actions { display:flex; justify-content:space-between; gap:8px; margin-top:18px; }
+    .dialog-actions button { padding:9px 15px; border:1px solid var(--green); border-radius:12px; font-weight:700; }
+    #genre-done { background:var(--green); color:#fff; }
+    #genre-clear { background:#fff; color:var(--green); }
+
+    @media(max-width:420px) { .label { width:48px; } .tier-count { left:6px; font-size:12px; max-width:40px; } .card { width:90px; } .drop { padding:10px; gap:8px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><div><h1>내 영화 티어리스트</h1><p class="sub">영화를 선택한 뒤 옮길 등급 글자를 눌러 주세요. 카드를 끌어서 놓아도 됩니다. 카드를 두 번 누르면 장르를 고를 수 있어요.</p></div></header>
+    <form class="tools" id="add-form">
+      <input id="title" aria-label="영화 제목" placeholder="영화 제목 추가" maxlength="80">
+      <button type="submit">추가</button>
+      <button type="button" class="reset" id="reset">처음으로</button>
+    </form>
+    <p id="message" role="status">영화를 선택해 S·A·B·C로 나누어 보세요.</p>
+    <section class="tiers" id="tiers" aria-label="영화 등급"></section>
+    <section class="pool" aria-label="아직 안 정한 영화">
+      <button class="pool-head" id="pool-label" type="button" aria-label="미분류로 옮기기">아직 안 정한 영화</button>
+      <div class="drop" id="pool" data-tier="pool"></div>
+    </section>
+    <p class="note">같은 브라우저에서 이 파일을 다시 열면 정리한 목록이 남습니다. 다른 사람에게 파일을 보내도 내 입력 내역까지 전달되지는 않습니다.</p>
+  </main>
+
+  <dialog id="genre-dialog" aria-labelledby="genre-title">
+    <h2 id="genre-title">장르 고르기</h2>
+    <p>해당하는 장르를 모두 눌러 주세요. 다시 누르면 해제돼요.</p>
+    <div class="chips" id="genre-chips"></div>
+    <div class="dialog-actions">
+      <button type="button" id="genre-clear">장르 지우기</button>
+      <button type="button" id="genre-done">완료</button>
+    </div>
+  </dialog>
+
+  <script>
+    const KEY = "codyssey-activity-04-v2";
+    const LEVELS = ['S', 'A', 'B', 'C', 'pool'];
+    const TITLES = ["기생충","인터스텔라","라라랜드","센과 치히로의 행방불명","어벤져스: 엔드게임","범죄도시","타이타닉","토이 스토리"];
+    const GENRES = ["액션","SF","판타지","드라마","로맨스","코미디","스릴러","공포","범죄","전쟁","모험","뮤지컬","미스터리","애니메이션"];
+    const COLORS = ["#f2e6dc","#e3eee7","#ede7f6","#fcefd9","#e2ecf4","#f6e3e3"];
+    const initial = () => ({ nextId: TITLES.length + 1, items: TITLES.map((title,index) => ({ id: 'm' + (index + 1), title, tier: 'pool', genres: [] })) });
+    let state = initial();
+    let selected = null;
+    let genreId = null;
+    let lastTap = { id: null, t: 0 };
+    try {
+      const stored = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (stored && Number.isSafeInteger(stored.nextId) && Array.isArray(stored.items)
+          && stored.items.every(item => typeof item.id === 'string' && typeof item.title === 'string' && LEVELS.includes(item.tier))) state = stored;
+    } catch {}
+    // 예전에 저장된 데이터에는 장르가 없으므로 빈 목록으로 맞춰 준다.
+    function normalize() {
+      state.items.forEach(item => { item.genres = Array.isArray(item.genres) ? GENRES.filter(g => item.genres.includes(g)) : []; });
+    }
+    normalize();
+    function showMessage(message) { document.querySelector('#message').textContent = message; }
+    function save() {
+      try { localStorage.setItem(KEY, JSON.stringify(state)); }
+      catch { showMessage('이 브라우저에서는 저장하지 못했어요. 현재 화면에서 확인한 내용과 다시 열어 확인한 내용을 구분해 주세요.'); }
+    }
+    function move(id,tier) {
+      const item = state.items.find(item => item.id === id);
+      if (!item || !LEVELS.includes(tier)) return;
+      item.tier = tier; selected = null; save(); render();
+      showMessage((item.title || '영화') + '를 옮겼어요.');
+    }
+
+    const dialog = document.querySelector('#genre-dialog');
+    const chipBox = document.querySelector('#genre-chips');
+    for (const genre of GENRES) {
+      const chip = document.createElement('button');
+      chip.type = 'button'; chip.className = 'chip'; chip.textContent = genre; chip.dataset.genre = genre;
+      chip.setAttribute('aria-pressed','false');
+      chip.addEventListener('click',() => toggleGenre(genre));
+      chipBox.append(chip);
+    }
+    function syncChips() {
+      const item = state.items.find(item => item.id === genreId);
+      for (const chip of chipBox.children) chip.setAttribute('aria-pressed', String(!!item && item.genres.includes(chip.dataset.genre)));
+    }
+    function openGenre(id) {
+      const item = state.items.find(item => item.id === id);
+      if (!item) return;
+      genreId = id;
+      document.querySelector('#genre-title').textContent = (item.title || '영화') + ' 장르';
+      syncChips();
+      if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.setAttribute('open','');
+    }
+    function changeGenres(next) {
+      const item = state.items.find(item => item.id === genreId);
+      if (!item) return;
+      item.genres = GENRES.filter(g => next.includes(g));
+      save(); render(); syncChips();
+      showMessage((item.title || '영화') + '의 장르: ' + (item.genres.length ? item.genres.join(', ') : '없음'));
+    }
+    function toggleGenre(genre) {
+      const item = state.items.find(item => item.id === genreId);
+      if (!item) return;
+      changeGenres(item.genres.includes(genre) ? item.genres.filter(g => g !== genre) : [...item.genres, genre]);
+    }
+    function closeGenre() { if (dialog.open) dialog.close(); }
+    dialog.addEventListener('close',() => {
+      const id = genreId; genreId = null;
+      const back = [...document.querySelectorAll('.card')].find(element => element.dataset.id === id);
+      if (back) back.focus();
+    });
+    dialog.addEventListener('click',event => { if (event.target === dialog) closeGenre(); });
+    document.querySelector('#genre-done').addEventListener('click',closeGenre);
+    document.querySelector('#genre-clear').addEventListener('click',() => changeGenres([]));
+
+    function card(item,index) {
+      const element = document.createElement('button');
+      element.type = 'button'; element.className = 'card'; element.draggable = true;
+      if (item.tier !== 'pool') element.classList.add('glitter', 'g-' + item.tier);
+      const title = document.createElement('span'); title.className = 'title'; title.textContent = item.title || ' ';
+      element.append(title);
+      if (item.genres.length) {
+        const genre = document.createElement('span'); genre.className = 'genre'; genre.textContent = item.genres.join(' · ');
+        element.append(genre);
+      }
+      element.dataset.id = item.id;
+      element.style.backgroundColor = COLORS[index % COLORS.length];
+      element.setAttribute('aria-label',(item.title || '영화 카드') + (item.genres.length ? ' (' + item.genres.join(', ') + ')' : ''));
+      element.setAttribute('aria-pressed',String(selected === item.id));
+      element.addEventListener('click',event => {
+        event.stopPropagation();
+        const now = Date.now();
+        if (lastTap.id === item.id && now - lastTap.t < 450) {
+          lastTap = { id: null, t: 0 }; selected = null; render(); openGenre(item.id); return;
+        }
+        lastTap = { id: item.id, t: now };
+        selected = selected === item.id ? null : item.id; render();
+        showMessage(selected ? (item.title || '영화') + '를 선택했어요.' : '선택을 해제했어요.');
+      });
+      element.addEventListener('dragstart',event => { event.dataTransfer.setData('text/plain',item.id); });
+      return element;
+    }
+    function wireDrop(element,tier) {
+      element.addEventListener('dragover',event => { event.preventDefault(); element.closest('.row')?.classList.add('over'); });
+      element.addEventListener('dragleave',() => element.closest('.row')?.classList.remove('over'));
+      element.addEventListener('drop',event => { event.preventDefault(); move(event.dataTransfer.getData('text/plain'),tier); });
+      element.onclick = () => { if (selected) move(selected,tier); };
+    }
+    function render() {
+      const tiers = document.querySelector('#tiers'); tiers.replaceChildren();
+      for (const tier of LEVELS.filter(value => value !== 'pool')) {
+        const count = state.items.filter(item => item.tier === tier).length;
+        const row = document.createElement('div'); row.className = 'row ' + tier;
+        const label = document.createElement('button'); label.type = 'button'; label.className = 'label';
+        label.textContent = tier; label.setAttribute('aria-label',tier + '등급으로 옮기기 (현재 ' + count + '개)');
+        label.addEventListener('click',() => { if (selected) move(selected,tier); else showMessage('먼저 영화 카드를 선택해 주세요.'); });
+        const badge = document.createElement('span'); badge.className = 'tier-count'; badge.textContent = count + '개'; badge.setAttribute('aria-hidden','true');
+        
+        const drop = document.createElement('div'); drop.className = 'drop'; drop.dataset.tier = tier;
+        state.items.forEach((item,index) => { if (item.tier === tier) drop.append(card(item,index)); });
+        wireDrop(drop,tier); row.append(label,badge,drop); tiers.append(row);
+      }
+      const pool = document.querySelector('#pool'); pool.replaceChildren();
+      state.items.forEach((item,index) => { if (item.tier === 'pool') pool.append(card(item,index)); });
+      
+    }
+    wireDrop(document.querySelector('#pool'),'pool');
+    document.querySelector('#pool-label').addEventListener('click',() => { if (selected) move(selected,'pool'); else showMessage('먼저 영화 카드를 선택해 주세요.'); });
+    document.querySelector('#add-form').addEventListener('submit',event => {
+      event.preventDefault(); const input = document.querySelector('#title'); const title = input.value.trim();
+      if (!title) { showMessage('영화 제목을 입력해 주세요.'); input.focus(); return; }
+      if (state.items.some(item => item.title === title)) { showMessage('이미 있는 영화 제목이에요. 다른 제목을 넣어 주세요.'); return; }
+      state.items.push({ id: 'm' + state.nextId++, title, tier: 'pool', genres: [] });
+      save(); render(); input.value = ''; showMessage('영화를 추가했어요.'); input.focus();
+    });
+    document.querySelector('#reset').addEventListener('click',() => {
+      state = initial(); selected = null; document.querySelector('#title').value = ''; save(); render(); showMessage('처음 목록으로 돌아왔어요.');
+    });
+    render();
+  </script>
+</body>
+</html>
